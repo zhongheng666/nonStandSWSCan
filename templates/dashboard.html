@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}首页 - 设备扫描统计{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2>当天扫描设备列表（共 {{ devices|length }} 台）</h2>
+
+  <table class="table table-bordered table-hover mt-3">
+    <thead class="table-light">
+      <tr>
+        <th>用户名</th>
+        <th>主机名</th>
+        <th>MAC 地址</th>
+        <th>最后扫描时间 (UTC)</th>
+        <th>查看软件清单</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in devices %}
+      <tr>
+        <td>{{ d.username }}</td>
+        <td>{{ d.hostname }}</td>
+        <td>{{ d.mac_address }}</td>
+        <td>{{ d.last_scan.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+        <td>
+          <button class="btn btn-sm btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#softwares-{{ d.id }}" aria-expanded="false" aria-controls="softwares-{{ d.id }}">
+            展开/收起
+          </button>
+        </td>
+      </tr>
+      <tr class="collapse" id="softwares-{{ d.id }}">
+        <td colspan="5">
+          <ul>
+            {% for sw in d.softwares %}
+              <li>{{ sw.name }}{% if sw.version %} - 版本: {{ sw.version }}{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 class="mt-5">违规软件提醒（关键字匹配）</h3>
+  {% if violations %}
+  <table class="table table-bordered table-striped mt-3">
+    <thead>
+      <tr>
+        <th>用户名</th>
+        <th>主机名</th>
+        <th>MAC 地址</th>
+        <th>违规软件名称</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in violations %}
+      <tr>
+        <td>{{ v.username }}</td>
+        <td>{{ v.hostname }}</td>
+        <td>{{ v.mac }}</td>
+        <td>{{ v.software }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>未检测到违规软件。</p>
+  {% endif %}
+</div>
+{% endblock %}
+

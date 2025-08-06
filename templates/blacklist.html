@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}黑名单管理{% endblock %}
+{% block content %}
+<h2>黑名单关键字管理</h2>
+
+<form method="POST" class="mb-4">
+  <label for="keywords" class="form-label">一次添加多条关键字，每行一条：</label>
+  <textarea name="keywords" id="keywords" rows="5" class="form-control" placeholder="每行输入一个关键字"></textarea>
+  <button type="submit" class="btn btn-primary mt-2">批量添加</button>
+</form>
+
+<!-- 批量删除表单 -->
+<form method="POST" action="{{ url_for('blacklist_delete_batch') }}" onsubmit="return confirm('确定要批量删除选中的关键字吗？');">
+  <table class="table table-bordered table-hover">
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="select-all" title="全选/取消全选"></th>
+        <th>ID</th>
+        <th>关键字</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in keywords %}
+      <tr>
+        <td><input type="checkbox" name="delete_ids" value="{{ k.id }}"></td>
+        <td>{{ k.id }}</td>
+        <td id="keyword-text-{{ k.id }}">{{ k.keyword }}</td>
+        <td>
+          <button class="btn btn-sm btn-warning" type="button" onclick="showEditForm({{ k.id }}, '{{ k.keyword | e }}')">修改</button>
+
+          <form action="{{ url_for('blacklist_delete', bid=k.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('确定删除?');">
+            <button class="btn btn-sm btn-danger" type="submit">删除</button>
+          </form>
+
+          <form id="edit-form-{{ k.id }}" action="{{ url_for('blacklist_edit', bid=k.id) }}" method="POST" class="d-none mt-2">
+            <input type="text" name="keyword" id="edit-input-{{ k.id }}" class="form-control form-control-sm" required>
+            <button type="submit" class="btn btn-sm btn-success mt-1">保存</button>
+            <button type="button" class="btn btn-sm btn-secondary mt-1" onclick="hideEditForm({{ k.id }})">取消</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <button type="submit" class="btn btn-danger mb-3">批量删除选中</button>
+</form>
+
+<nav>
+  <ul class="pagination">
+    {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('blacklist_page', page=pagination.prev_num) }}">上一页</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">上一页</span></li>
+    {% endif %}
+
+    <li class="page-item disabled"><span class="page-link">第 {{ pagination.page }} 页</span></li>
+
+    {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('blacklist_page', page=pagination.next_num) }}">下一页</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">下一页</span></li>
+    {% endif %}
+  </ul>
+</nav>
+
+<script>
+  function showEditForm(id, keyword) {
+    document.getElementById('keyword-text-' + id).style.display = 'none';
+    const form = document.getElementById('edit-form-' + id);
+    form.classList.remove('d-none');
+    form.querySelector('input[name="keyword"]').value = keyword;
+  }
+  function hideEditForm(id) {
+    document.getElementById('keyword-text-' + id).style.display = '';
+    const form = document.getElementById('edit-form-' + id);
+    form.classList.add('d-none');
+  }
+
+  // 全选/取消全选功能
+  document.getElementById('select-all').addEventListener('change', function() {
+    const checked = this.checked;
+    document.querySelectorAll('input[name="delete_ids"]').forEach(cb => cb.checked = checked);
+  });
+</script>
+{% endblock %}
+
