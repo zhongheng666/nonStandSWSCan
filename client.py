@@ -9,20 +9,21 @@ import threading
 import time
 import os
 import ctypes
+import sys
+import base64
 import string
-import base64,socket
-
+from PIL import Image
+import pystray
+from pystray import MenuItem as item
 
 SERVER_URL = 'http://192.168.1.1:8888/upload'  # 请替换为你的服务器地址
 
 def resource_path(relative_path):
-    """获取资源路径，支持 PyInstaller 打包后路径"""
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
-
 
 def get_config_dir():
     appdata = os.getenv('APPDATA') or os.path.expanduser('~')
@@ -88,7 +89,6 @@ def get_green_software():
     drives = get_all_drives()
     for drive in drives:
         for root, dirs, files in os.walk(drive):
-            # 排除系统目录提升扫描速度
             dirs[:] = [d for d in dirs if d.lower() not in ['windows', 'program files', 'program files (x86)', '$recycle.bin', 'system volume information']]
             for file in files:
                 if file.lower().endswith('.exe'):
@@ -104,6 +104,8 @@ class App(tk.Tk):
         if os.path.exists(icon_path):
             self.iconbitmap(icon_path)
 
+        self.withdraw()  # 初始隐藏窗口
+
         self.username = None
         self.load_username()
         self.machine_name = get_machine_name()
@@ -111,7 +113,12 @@ class App(tk.Tk):
         self.software_list = []
 
         self.create_widgets()
-        self.after(100, self.force_set_username)
+        self.create_tray_icon()
+
+        if not self.username:
+            self.after(100, self.force_set_username)
+        else:
+            self.after(1000, self.auto_background_work)
 
     def create_widgets(self):
         self.label_user = tk.Label(self, text=f"姓 名: {self.username if self.username else '未设置'}")
@@ -156,6 +163,7 @@ class App(tk.Tk):
                 messagebox.showerror("保存失败", f"保存姓名失败：{e}")
 
     def force_set_username(self):
+        self.deiconify()
         while not self.username:
             name = simpledialog.askstring("设置员工名", "请输入员工名（必填）：", parent=self)
             if name and name.strip():
@@ -232,13 +240,35 @@ class App(tk.Tk):
                 print(f"上传异常: {e}")
             time.sleep(30)
 
+    def create_tray_icon(self):
+        icon_path = resource_path("app_icon.ico")
+        if not os.path.exists(icon_path):
+            return
+
+        image = Image.open(icon_path)
+        menu = (item('显示窗口', self.show_window), item('退出程序', self.quit_app))
+        self.tray_icon = pystray.Icon("swscan", image, "软件扫描", menu)
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_window(self):
+        self.deiconify()
+        self.lift()
+
+    def auto_background_work(self):
+        self.scan_software()
+        threading.Thread(target=self.auto_upload_with_retry, daemon=True).start()
+
+    def quit_app(self):
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.stop()
+        self.destroy()
+
 if __name__ == "__main__":
     try:
         import psutil
         import requests
     except ImportError:
         import subprocess
-        import sys
         subprocess.check_call([sys.executable, "-m", "pip", "install", "psutil", "requests"])
         import psutil
         import requests
