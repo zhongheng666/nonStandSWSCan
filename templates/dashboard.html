@@ -20,7 +20,12 @@
     <tr>
       <td>{{ device.hostname }}</td>
       <td>{{ device.username }}</td>
-      <td>{{ device.mac_addresses }}</td>
+      <!--<td>{{ device.mac_addresses }}</td>-->
+      <td>
+ 	 {% for mac in device.mac_addresses.split(',') %}
+    	{{ mac }}<br>
+  	{% endfor %}
+      </td>
       <td>{{ device.last_scan.strftime('%Y-%m-%d %H:%M:%S') }}</td>
       <td>
         <button class="btn btn-sm btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#softwares{{ loop.index }}">

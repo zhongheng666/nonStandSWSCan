@@ -185,3 +185,10 @@ def register_routes(app):
         flash(f'成功批量删除 {len(ids)} 条关键字', 'success')
         return redirect(url_for('blacklist_page'))
 
+    @app.route("/api/admin_password")
+    def get_admin_password():
+        pw = AdminPassword.query.first()
+        if pw:
+            return jsonify({"password": pw.password})
+        return jsonify({"password": None}), 404
+
