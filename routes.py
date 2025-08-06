@@ -1,52 +1,69 @@
-# server/routes.py
 from flask import (
-    Flask, request, render_template, jsonify, redirect, url_for, flash
+    request, render_template, jsonify, redirect, url_for, flash
 )
 from extensions import db
 from models import Device, Software, Blacklist, AdminPassword
-from datetime import datetime, timedelta  # 这里补上timedelta导入
+from datetime import datetime, timedelta, date, time
 from sqlalchemy import and_, func
-from sqlalchemy.orm import aliased
+from collections import defaultdict
+from sqlalchemy.orm import joinedload
+
 
 def register_routes(app):
+
     @app.route('/')
     def dashboard():
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
+        today_start = datetime.combine(date.today(), time.min)
+        today_end = datetime.combine(date.today(), time.max)
 
-        # 子查询：每个 mac_address 当天最新扫描时间
-        subq = db.session.query(
-            Device.mac_address,
-            func.max(Device.last_scan).label('max_scan')
-        ).filter(
+        # 预加载软件，避免懒加载空白
+        today_devices = Device.query.options(joinedload(Device.softwares)).filter(
             and_(Device.last_scan >= today_start, Device.last_scan < today_end)
-        ).group_by(Device.mac_address).subquery()
+        ).order_by(Device.last_scan.desc()).all()
 
-        DeviceAlias = aliased(Device)
+        # 合并同主机 + 员工名下的多个 MAC 地址
+        devices_map = defaultdict(lambda: {
+            "hostname": "",
+            "username": "",
+            "mac_addresses": set(),
+            "last_scan": None,
+            "softwares": []
+        })
 
-        latest_devices = db.session.query(DeviceAlias).join(
-            subq,
-            and_(
-                DeviceAlias.mac_address == subq.c.mac_address,
-                DeviceAlias.last_scan == subq.c.max_scan
-            )
-        ).all()
+        for d in today_devices:
+            key = (d.hostname, d.username)
+            entry = devices_map[key]
+            entry["hostname"] = d.hostname
+            entry["username"] = d.username
+            entry["mac_addresses"].add(d.mac_address)
+            if entry["last_scan"] is None or d.last_scan > entry["last_scan"]:
+                entry["last_scan"] = d.last_scan
+                entry["softwares"] = d.softwares
 
+        merged_devices = []
         black_keywords = [b.keyword.lower() for b in Blacklist.query.all()]
-
         violations = []
-        for d in latest_devices:
-            for s in d.softwares:
+
+        for entry in devices_map.values():
+            merged_devices.append({
+                "hostname": entry["hostname"],
+                "username": entry["username"],
+                "mac_addresses": ", ".join(sorted(entry["mac_addresses"])),
+                "last_scan": entry["last_scan"],
+                "softwares": entry["softwares"]
+            })
+
+            for sw in entry["softwares"]:
                 for k in black_keywords:
-                    if k in s.name.lower():
+                    if k in sw.name.lower():
                         violations.append({
-                            'username': d.username,
-                            'hostname': d.hostname,
-                            'mac': d.mac_address,
-                            'software': s.name
+                            'username': entry["username"],
+                            'hostname': entry["hostname"],
+                            'mac': ", ".join(sorted(entry["mac_addresses"])),
+                            'software': sw.name
                         })
 
-        return render_template('dashboard.html', devices=latest_devices, violations=violations)
+        return render_template('dashboard.html', devices=merged_devices, violations=violations)
 
     @app.route('/upload', methods=['POST'])
     def upload():
@@ -67,23 +84,21 @@ def register_routes(app):
             if not device:
                 device = Device(username=username, hostname=hostname, mac_address=mac, last_scan=datetime.utcnow())
                 db.session.add(device)
-                db.session.commit()
+                db.session.flush()  # 获得 device.id
             else:
                 device.username = username
                 device.hostname = hostname
                 device.last_scan = datetime.utcnow()
-                db.session.commit()
-                # 删除旧软件列表，避免重复
+                # 删除旧软件
                 Software.query.filter_by(device_id=device.id).delete()
-                db.session.commit()
 
             for sw in softwares:
                 s = Software(device_id=device.id, name=sw.get('name', ''), version=sw.get('version', ''))
                 db.session.add(s)
-            db.session.commit()
+
+        db.session.commit()
 
         return jsonify({'status': 'success'})
-
 
     @app.route('/admin/password', methods=['GET', 'POST'])
     def admin_password_page():

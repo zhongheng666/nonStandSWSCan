@@ -1,70 +1,65 @@
-{% extends 'base.html' %}
-{% block title %}首页 - 设备扫描统计{% endblock %}
-{% block content %}
-<div class="container mt-4">
-  <h2>当天扫描设备列表（共 {{ devices|length }} 台）</h2>
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
 
-  <table class="table table-bordered table-hover mt-3">
-    <thead class="table-light">
-      <tr>
-        <th>用户名</th>
-        <th>主机名</th>
-        <th>MAC 地址</th>
-        <th>最后扫描时间 (UTC)</th>
-        <th>查看软件清单</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for d in devices %}
-      <tr>
-        <td>{{ d.username }}</td>
-        <td>{{ d.hostname }}</td>
-        <td>{{ d.mac_address }}</td>
-        <td>{{ d.last_scan.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-        <td>
-          <button class="btn btn-sm btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#softwares-{{ d.id }}" aria-expanded="false" aria-controls="softwares-{{ d.id }}">
-            展开/收起
-          </button>
-        </td>
-      </tr>
-      <tr class="collapse" id="softwares-{{ d.id }}">
-        <td colspan="5">
+{% block title %}仪表盘{% endblock %}
+
+{% block content %}
+<h2>今日扫描设备</h2>
+<table class="table table-bordered table-hover">
+  <thead>
+    <tr>
+      <th>机器名</th>
+      <th>员工名</th>
+      <th>MAC 地址</th>
+      <th>最后扫描时间</th>
+      <th>软件清单</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for device in devices %}
+    <tr>
+      <td>{{ device.hostname }}</td>
+      <td>{{ device.username }}</td>
+      <td>{{ device.mac_addresses }}</td>
+      <td>{{ device.last_scan.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td>
+        <button class="btn btn-sm btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#softwares{{ loop.index }}">
+          展开/收起
+        </button>
+        <div class="collapse mt-2" id="softwares{{ loop.index }}">
           <ul>
-            {% for sw in d.softwares %}
-              <li>{{ sw.name }}{% if sw.version %} - 版本: {{ sw.version }}{% endif %}</li>
+            {% for sw in device.softwares %}
+              <li>{{ sw.name }}{% if sw.version %} ({{ sw.version }}){% endif %}</li>
+            {% else %}
+              <li><em>无软件信息</em></li>
             {% endfor %}
           </ul>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5" class="text-center">暂无今日扫描数据</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 
-  <h3 class="mt-5">违规软件提醒（关键字匹配）</h3>
-  {% if violations %}
-  <table class="table table-bordered table-striped mt-3">
-    <thead>
-      <tr>
-        <th>用户名</th>
-        <th>主机名</th>
-        <th>MAC 地址</th>
-        <th>违规软件名称</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for v in violations %}
-      <tr>
-        <td>{{ v.username }}</td>
-        <td>{{ v.hostname }}</td>
-        <td>{{ v.mac }}</td>
-        <td>{{ v.software }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p>未检测到违规软件。</p>
-  {% endif %}
-</div>
+<hr />
+
+<h2>违规软件提醒</h2>
+{% if violations %}
+  <ul class="list-group">
+    {% for v in violations %}
+      <li class="list-group-item list-group-item-danger">
+        用户 <strong>{{ v.username }}</strong> 的设备 <strong>{{ v.hostname }}</strong> (MAC: {{ v.mac }}) 
+        安装了违规软件：<strong>{{ v.software }}</strong>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="text-success">无违规软件</p>
+{% endif %}
+
 {% endblock %}
 
